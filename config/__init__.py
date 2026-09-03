@@ -1,0 +1,1 @@
+"""FixFlow Django configuration."""

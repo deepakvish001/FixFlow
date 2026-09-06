@@ -16,4 +16,5 @@ jobs:
       - run: ruff check .
       - run: pytest
       - run: python manage.py makemigrations --check
+      - run: python manage.py migrate --noinput
       - run: python manage.py migrate --check

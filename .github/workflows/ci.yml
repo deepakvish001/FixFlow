@@ -18,3 +18,4 @@ jobs:
       - run: python manage.py makemigrations --check
       - run: python manage.py migrate --noinput
       - run: python manage.py migrate --check
+      - run: docker build --tag fixflow:ci .

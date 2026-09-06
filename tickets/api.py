@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -7,6 +8,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from tickets.models import Asset, Site, Ticket, TicketEvent
+from tickets.sla import deadline_for
 from tickets.workflow import InvalidTransition, transition_ticket
 
 
@@ -51,6 +53,10 @@ class TicketSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("title must contain at least 3 characters")
         return value
 
+    def create(self, validated_data: dict) -> Ticket:
+        validated_data.setdefault("due_at", deadline_for(validated_data.get("priority", Ticket.Priority.NORMAL)))
+        return super().create(validated_data)
+
 
 class SiteViewSet(viewsets.ModelViewSet):
     queryset = Site.objects.order_by("name")
@@ -69,6 +75,14 @@ class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.select_related("reported_by", "assigned_to", "asset").prefetch_related("events").order_by("-created_at")
     serializer_class = TicketSerializer
     permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.query_params.get("overdue", "").lower() == "true":
+            queryset = queryset.filter(due_at__lt=timezone.now()).exclude(
+                status__in=(Ticket.Status.RESOLVED, Ticket.Status.CLOSED),
+            )
+        return queryset
 
     def perform_create(self, serializer: TicketSerializer) -> None:
         serializer.save(reported_by=self.request.user)
